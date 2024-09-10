@@ -1,0 +1,284 @@
+import React, { useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import {
+  addDivision,
+  updateDivision,
+  saveLayout,
+  loadLayout,
+  deleteLayout,
+} from "../store/layoutSlice";
+import LayoutPreview from "./LayoutPreview";
+import ScreenDivision from "./ScreenDivision";
+import images from "../assets/images"; // Assuming you have an array of image objects
+import videos from "../assets/videos"; // Assuming you have an array of video objects
+import Preview from "./Preview"; // Import the PreviewLayout component
+
+const CustomLayoutPage = () => {
+  const dispatch = useDispatch();
+  const layouts = useSelector((state) => state.layout.layouts);
+  const selectedLayout = useSelector((state) => state.layout.currentLayout);
+  const [layoutName, setLayoutName] = useState("");
+  const [draggedMedia, setDraggedMedia] = useState(null); // State to store the dragged media ID and type
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false); // State to control the preview modal
+
+  const handleAddDivision = () => {
+    const newDivision = {
+      id: Date.now(), // Unique ID for each division
+      x: 0,
+      y: 0,
+      width: 300,
+      height: 200,
+      imageSrcs: [], // Initialize with an empty array to store multiple images or videos
+    };
+    dispatch(addDivision(newDivision));
+  };
+
+  const handleSaveLayout = () => {
+    if (layoutName) {
+      dispatch(saveLayout({ name: layoutName }));
+      setLayoutName("");
+      saveLayout("");
+    } else {
+      alert("Please enter a layout name.");
+    }
+  };
+
+  const handleLoadLayout = (id) => {
+    dispatch(loadLayout(id)); // Load the layout into the editable area
+  };
+
+  const handleSelectLayout = (layout) => {
+    dispatch(loadLayout(layout.id)); // Load the selected layout into the editable area
+  };
+
+  const handleDeleteLayout = (id) => {
+    dispatch(deleteLayout(id));
+  };
+
+  const handleDivisionChange = (id, changes) => {
+    dispatch(updateDivision({ id, changes }));
+  };
+
+  const handleDragStart = (media) => {
+    setDraggedMedia(media); // Set the dragged media ID and type
+  };
+
+  const handleDropMedia = (divisionId, event) => {
+    event.preventDefault();
+
+    if (draggedMedia !== null) {
+      const { id, type } = draggedMedia;
+
+      // Find the media in the respective array by ID
+      const mediaObj =
+        type === "image"
+          ? images.find((img) => img.id === id)
+          : videos.find((video) => video.id === id);
+
+      if (mediaObj) {
+        // Find the division within the selected layout
+        const division = selectedLayout.divisions.find(
+          (div) => div.id === divisionId
+        );
+
+        if (division) {
+          // Add the new media to the array of imageSrcs
+          const updatedImageSrcs = [
+            ...(division.imageSrcs || []),
+            mediaObj.src,
+          ];
+          dispatch(
+            updateDivision({
+              id: divisionId,
+              changes: { imageSrcs: updatedImageSrcs },
+            })
+          );
+        }
+      }
+    }
+  };
+
+  const handlePreviewClick = () => {
+    setIsPreviewOpen(true);
+  };
+
+  const handleClosePreview = () => {
+    setIsPreviewOpen(false);
+  };
+
+  return (
+    <div style={{ margin: "20px", backgroundColor: "#FAF9F6" }}>
+      <h1>Create Custom Layout</h1>
+      <input
+        type="text"
+        value={layoutName}
+        onChange={(e) => setLayoutName(e.target.value)}
+        placeholder="Enter layout name"
+      />
+      <button onClick={handleSaveLayout}>Save Layout</button>
+      <LayoutPreview
+        divisions={selectedLayout.divisions}
+        onDivisionChange={handleDivisionChange}
+        onDropImage={handleDropMedia}
+      />
+      <button onClick={handleAddDivision}>Add Division</button>
+      {selectedLayout.divisions.map((div, index) => (
+        <ScreenDivision key={div.id} index={index} division={div} />
+      ))}
+      <h2>Saved Layouts</h2>
+      <div style={{ display: "flex", flexWrap: "wrap" }}>
+        {layouts.map((layout) => (
+          <div
+            key={layout.id}
+            style={{
+              margin: "10px",
+              border:
+                selectedLayout && selectedLayout.id === layout.id
+                  ? "4px solid blue"
+                  : "1px solid #ccc",
+              padding: "10px",
+            }}
+            onClick={() => handleSelectLayout(layout)} // Set the layout for timeline view
+          >
+            <h3>{layout.name}</h3>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <button onClick={() => handleLoadLayout(layout.id)}>Load</button>
+              <button onClick={() => handleDeleteLayout(layout.id)}>
+                Delete
+              </button>
+            </div>
+            <div
+              style={{
+                width: "150px",
+                height: "80px",
+                position: "relative",
+                border: "1px solid black",
+              }}
+            >
+              <LayoutPreview divisions={layout.divisions} isPreview={true} />
+            </div>
+          </div>
+        ))}
+      </div>
+      {selectedLayout && (
+        <div style={{ marginTop: "20px" }}>
+          <h2>Timeline for Layout: {selectedLayout.name}</h2>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              border: "1px solid #ddd",
+              padding: "10px",
+            }}
+          >
+            {selectedLayout.divisions.map((division, index) => (
+              <div
+                key={division.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  borderBottom:
+                    index !== selectedLayout.divisions.length - 1
+                      ? "1px solid #ddd"
+                      : "none",
+                  padding: "5px 0",
+                }}
+                onDrop={(e) => handleDropMedia(division.id, e)}
+                onDragOver={(e) => e.preventDefault()} // Allows the drop
+              >
+                <div
+                  style={{
+                    width: "50px",
+                    height: "50px",
+                    backgroundColor: "#007bff",
+                    color: "white",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginRight: "10px",
+                  }}
+                >
+                  {index + 1}
+                </div>
+                <div
+                  style={{
+                    flex: 1,
+                    padding: "20px",
+                    backgroundColor: "#f8f9fa",
+                    // border: "1px solid #ddd",
+                    display: "flex",
+                    gap: "5px",
+                  }}
+                >
+                  {division.imageSrcs &&
+                    division.imageSrcs.map((src, i) =>
+                      src.endsWith(".mp4") ? (
+                        <video
+                          key={i}
+                          src={src}
+                          controls={false}
+                          style={{ maxWidth: "10%", pointerEvents: "none" }}
+                        />
+                      ) : (
+                        <img
+                          key={i}
+                          src={src}
+                          alt="Dropped"
+                          style={{ maxWidth: "10%" }}
+                        />
+                      )
+                    )}
+                </div>
+              </div>
+            ))}
+            <button
+              onClick={handlePreviewClick}
+              style={{
+                alignSelf: "flex-end",
+                marginTop: "10px",
+                padding: "5px 10px",
+                cursor: "pointer",
+              }}
+            >
+              Preview Layout
+            </button>
+          </div>
+        </div>
+      )}
+      <h2>Images & Videos Gallery</h2>
+      <div style={{ display: "flex", flexWrap: "wrap", cursor: "pointer" }}>
+        {images.map((item, index) => (
+          <img
+            src={item.src}
+            key={index}
+            alt="images"
+            height={80}
+            width={130}
+            style={{ margin: "5px" }}
+            draggable
+            onDragStart={() => handleDragStart({ id: item.id, type: "image" })} // Set the image ID on drag start
+          />
+        ))}
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", cursor: "pointer" }}>
+        {videos.map((video, index) => (
+          <video
+            key={index}
+            src={video.src}
+            height={80}
+            width={130}
+            style={{ margin: "5px" }}
+            draggable
+            onDragStart={() => handleDragStart({ id: video.id, type: "video" })} // Set the video ID on drag start
+          />
+        ))}
+      </div>
+
+      {isPreviewOpen && (
+        <Preview layout={selectedLayout} onClose={handleClosePreview} />
+      )}
+    </div>
+  );
+};
+
+export default CustomLayoutPage;
